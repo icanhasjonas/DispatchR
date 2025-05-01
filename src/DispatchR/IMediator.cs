@@ -1,39 +1,74 @@
 ﻿using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.ObjectPool;
+using ZLinq;
+using ZLinq.Linq;
 
 namespace DispatchR;
 
 public interface IMediator
 {
-    Task<TResponse> Send<TRequest, TResponse>(IRequest<TRequest, TResponse> command,
-        CancellationToken cancellationToken) where TRequest : IRequest;
+    Task<TResponse> Send<TRequest, TResponse>(IRequest<TRequest, TResponse> request,
+        CancellationToken cancellationToken) where TRequest : class, IRequest, new();
 }
 
-public class Mediator(IServiceProvider serviceProvider) : IMediator
+public sealed class Mediator(IServiceProvider serviceProvider) : IMediator
 {
-    public Task<TResponse> Send<TRequest, TResponse>(IRequest<TRequest, TResponse> command,
-        CancellationToken cancellationToken) where TRequest : IRequest
+    // private static readonly ConcurrentDictionary<Type, Type[]> HandlerTypesCache = new();
+
+    public Task<TResponse> Send<TRequest, TResponse>(IRequest<TRequest, TResponse> request,
+        CancellationToken cancellationToken) where TRequest : class, IRequest, new()
     {
-        var request = (TRequest)command;
+        var handlersWithPipelines = serviceProvider
+            .GetServices<IRequestHandler<TRequest, TResponse>>()
+            .AsValueEnumerable();
 
-        var pipelines = serviceProvider.GetServices<IRequestPipeline<TRequest, TResponse>>().ToList();
-
-        var handler = serviceProvider.GetRequiredService<IRequestHandler<TRequest, TResponse>>();
-        
-        Task<TResponse> RequestHandler(CancellationToken t = default) => handler
-            .Handle(request, cancellationToken);
-
-        if (pipelines.Any())
+        using var pipelines = handlersWithPipelines.Enumerator;
+        IRequestHandler<TRequest, TResponse>? lastPipelineRegistered = null;
+        while (pipelines.TryGetNext(out var pipeline))
         {
-            var handlerWithPipeline = pipelines
-                .OrderByDescending(p => p.Priority)
-                .Aggregate((RequestHandlerDelegate<TResponse>)RequestHandler,
-                (next, pipeline) => (ct) =>
-                    pipeline.Handle(request, next, ct == CancellationToken.None ? cancellationToken : ct));
+            if (lastPipelineRegistered is not null)
+            {
+                pipeline.SetNext(ref lastPipelineRegistered);
+            }
             
-            return handlerWithPipeline(cancellationToken);
+            lastPipelineRegistered = pipeline;
         }
 
-        return handler.Handle(request, cancellationToken);
+        return lastPipelineRegistered!.Handle(Unsafe.As<TRequest>(request), cancellationToken);
     }
+
+    // private Task SendSimple<TRequest, TResponse>(IRequest<TRequest, TResponse> request,
+    //     CancellationToken cancellationToken) where TRequest : class, IRequest, new()
+    // {
+    //     
+    // }
+
+    // public ValueTask<TResponse> SendWithCache<TRequest, TResponse>(IRequest<TRequest, TResponse> command,
+    //     CancellationToken cancellationToken) where TRequest : class, IRequest, new()
+    // {
+    //     var key = typeof(TRequest);
+    //     ValueEnumerable<FromEnumerable<IRequestHandler<TRequest, TResponse>>, IRequestHandler<TRequest, TResponse>> handlers;
+    //     if (HandlerTypesCache.TryGetValue(key, out var handlerTypes) is false)
+    //     {
+    //         handlers = serviceProvider.GetServices<IRequestHandler<TRequest, TResponse>>().AsValueEnumerable();
+    //         HandlerTypesCache.TryAdd(key, handlers.Select(static h => h.GetType()).ToArray());
+    //     }
+    //     else
+    //     {
+    //         handlers = handlerTypes
+    //             .Select(type => Unsafe.As<IRequestHandler<TRequest, TResponse>>(ActivatorUtilities.CreateInstance(serviceProvider, type)))
+    //             .AsValueEnumerable();
+    //     }
+    //         
+    //     IRequestHandler<TRequest, TResponse>? current = null;
+    //     foreach (var handler in handlers)
+    //     {
+    //         handler.SetNext(current!);
+    //         current = handler;
+    //     }
+    //
+    //     return current!.Handle(Unsafe.As<TRequest>(command), cancellationToken);
+    // }
 }

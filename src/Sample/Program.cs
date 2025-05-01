@@ -1,7 +1,7 @@
 using System.Reflection;
 using DispatchR;
 using Sample;
-
+    
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -9,11 +9,20 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddOpenApi();
 builder.Services.AddDispatchR(typeof(MyCommand).Assembly);
 
+// builder.Services.AddMediatR(cfg =>
+// {
+//     cfg.Lifetime = ServiceLifetime.Scoped;
+//     cfg.RegisterServicesFromAssemblies(typeof(MyCommand).Assembly);
+// });
+// builder.Services.AddTransient<MediatR.IPipelineBehavior<MyCommand, int>, PipelineBehavior>();
+// builder.Services.AddTransient<MediatR.IPipelineBehavior<MyCommand, int>, Pipeline2>();
+
 var app = builder.Build();
 var mediator = app.Services.CreateAsyncScope().ServiceProvider.GetRequiredService<IMediator>();
-await mediator.Send(new MyCommand(), CancellationToken.None);
-// await handler.Send(new MyCommand(), CancellationToken.None);
-// Configure the HTTP request pipeline.
+var tt = await mediator.Send(new MyCommand(), CancellationToken.None);
+var tt2 = await mediator.Send(new MyCommand(), CancellationToken.None);
+var tt3 = await mediator.Send(new MyCommand(), CancellationToken.None);
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
