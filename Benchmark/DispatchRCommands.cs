@@ -2,22 +2,24 @@
 
 namespace Benchmark;
 
-// Request
-public class PingDispatchR : IRequest<PingDispatchR, string> { }
+public sealed record PingDispatchR : IRequest<PingDispatchR, int> { }
 
-// Handler
-public class PingHandlerDispatchR : IRequestHandler<PingDispatchR, string>
+public sealed record PingDispatchRWithOutHandler : IRequest<PingDispatchR, int> { }
+
+public sealed class PingHandlerDispatchR : IRequestHandler<PingDispatchR, int>
 {
-    public Task<string> Handle(PingDispatchR request, CancellationToken cancellationToken)
+    public Task<int> Handle(PingDispatchR request, CancellationToken cancellationToken)
     {
-        return Task.FromResult("Pong");
+        return Task.FromResult(0);
     }
 }
 
-public class LoggingBehaviorDispatchR : IRequestPipeline<PingDispatchR, string>
+public sealed class LoggingBehaviorDispatchR : IPipelineBehavior<PingDispatchR, int>
 {
-    public Task<string> Handle(PingDispatchR command, RequestHandlerDelegate<string> next, CancellationToken cancellationToken)
+    public required IRequestHandler<PingDispatchR, int> NextPipeline { get; set; }
+
+    public Task<int> Handle(PingDispatchR request, CancellationToken cancellationToken)
     {
-        return next(cancellationToken);
+        return NextPipeline.Handle(request, cancellationToken);
     }
 }
