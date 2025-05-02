@@ -5,7 +5,7 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
 
-        <PackageId>DispatchR</PackageId>
+        <PackageId>DispatchR.Mediator</PackageId>
         <Authors>hasanxdev</Authors>
         <Description>
             Fast, zero-alloc alternative to MediatR for .NET – minimal, blazing fast, and DI-friendly.
