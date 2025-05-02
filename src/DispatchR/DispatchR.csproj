@@ -4,6 +4,15 @@
         <TargetFramework>net9.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+
+        <PackageId>DispatchR</PackageId>
+        <Authors>hasanxdev</Authors>
+        <Description>
+            Fast, zero-alloc alternative to MediatR for .NET – minimal, blazing fast, and DI-friendly.
+        </Description>
+        <PackageTags>DispatchR;Mediator;MediatR</PackageTags>
+        <PackageProjectUrl>https://github.com/hasanxdev/DispatchR</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/hasanxdev/DispatchR</RepositoryUrl>
     </PropertyGroup>
 
     <ItemGroup>
