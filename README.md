@@ -9,4 +9,4 @@
 - 🛠️ Built-in DI support
 
 # Bechmark Result:
-![Benchmark Result](./Benchmark/result.jpg)
+![Benchmark Result](./src/Benchmark/result.jpg)

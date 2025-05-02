@@ -14,7 +14,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\src\DispatchR\DispatchR.csproj" />
+      <ProjectReference Include="..\DispatchR\DispatchR.csproj" />
     </ItemGroup>
 
 </Project>
