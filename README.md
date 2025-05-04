@@ -1,17 +1,11 @@
-<center>DispatchR 🚀</center>
-============
-
-<div style="text-align: center;">
+# DispatchR 🚀
 
 ![CI](https://github.com/hasanxdev/DispatchR/workflows/Release/badge.svg)
 [![NuGet](https://img.shields.io/nuget/dt/DispatchR.Mediator.svg)](https://www.nuget.org/packages/DispatchR.Mediator)
 [![NuGet](https://img.shields.io/nuget/vpre/DispatchR.Mediator.svg)](https://www.nuget.org/packages/DispatchR.Mediator)
-</div>
-<div style="text-align: center;">
 
 ### A High-Performance Mediator Implementation for .NET, 
 ** *Minimal memory footprint. Blazing-fast execution.* **
-</div>
 
 ## ⚡ Key Features
 - 🧩 Built entirely on top of Dependency Injection
@@ -20,11 +14,11 @@
 - 🧠 Allocates nothing on the heap — ideal for high-throughput scenarios
 - ⚡ Outperforms existing solutions in most real-world benchmarks
 - 🔄 Seamlessly compatible with MediatR — migrate with minimal effort
-> :bulb: **Tip:** If you're looking for a mediator with the raw performance of hand-written code, DispatchR is built for you.
+> :bulb: **Tip:** *If you're looking for a mediator with the raw performance of hand-written code, DispatchR is built for you.*
 
 # Syntax Comparison: DispatchR vs MediatR
 
-In the following, you will see the key differences and implementation details between MediatR and DispatchR.
+###### In the following, you will see the key differences and implementation details between MediatR and DispatchR.
 
 ---
 
@@ -43,8 +37,6 @@ public sealed class PingMediatR : IRequest<int> { }
 ```csharp
 public sealed class PingDispatchR : IRequest<PingDispatchR, ValueTask<int>> { } 
 ```
-
----
 
 ## ✅ Handler Definition
 
@@ -70,8 +62,6 @@ public sealed class PingHandlerDispatchR : IRequestHandler<PingDispatchR, ValueT
     }
 }
 ```
-
----
 
 ## ✅ Pipeline Behavior
 
@@ -101,8 +91,6 @@ public sealed class LoggingBehaviorDispatchR : IPipelineBehavior<PingDispatchR, 
 }
 ```
 
----
-
 ## 🔍 Summary
 
 - **DispatchR** lets the request itself define the return type.
@@ -115,9 +103,7 @@ Ideal for high-performance .NET applications.
 
 # ⚡ How DispatchR Achieves High Performance
 
-DispatchR is designed with one goal in mind: **maximize performance with minimal memory usage**. Here's how it accomplishes that:
-
----
+###### DispatchR is designed with one goal in mind: **maximize performance with minimal memory usage**. Here's how it accomplishes that:
 
 ## 🔍 What Happens Inside the `Send` Method?
 
@@ -158,10 +144,8 @@ services.AddScoped(handlerInterface, sp =>
 ---
 ## 🧠 Smarter LINQ: Zero Allocation
 
-To further reduce memory allocations, DispatchR uses **zLinq**, a zero-allocation LINQ implementation, instead of the default LINQ. This means even in heavy pipelines and high-frequency requests, memory remains under control.
-<br><br>
-💭 Of course, our goal is to stay dependency-free — but for now, I think it's totally fine to rely on this as a starting point!
----
+##### To further reduce memory allocations, DispatchR uses **zLinq**, a zero-allocation LINQ implementation, instead of the default LINQ. This means even in heavy pipelines and high-frequency requests, memory remains under control.
+> Of course, our goal is to stay dependency-free — but for now, I think it's totally fine to rely on this as a starting point!
 
 ## 🪴 How to use?
 It's simple! Just use the following code:
