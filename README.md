@@ -20,8 +20,6 @@
 
 ###### In the following, you will see the key differences and implementation details between MediatR and DispatchR.
 
----
-
 ## ✅ Request Definition
 
 ### MediatR
@@ -141,7 +139,7 @@ services.AddScoped(handlerInterface, sp =>
 
 ✨ This elegant design chains pipeline behaviors at resolution time — no static lists, no reflection, no magic.
 
----
+
 ## 🧠 Smarter LINQ: Zero Allocation
 
 ##### To further reduce memory allocations, DispatchR uses **zLinq**, a zero-allocation LINQ implementation, instead of the default LINQ. This means even in heavy pipelines and high-frequency requests, memory remains under control.
