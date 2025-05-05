@@ -4,8 +4,11 @@
 [![NuGet](https://img.shields.io/nuget/dt/DispatchR.Mediator.svg)](https://www.nuget.org/packages/DispatchR.Mediator)
 [![NuGet](https://img.shields.io/nuget/vpre/DispatchR.Mediator.svg)](https://www.nuget.org/packages/DispatchR.Mediator)
 
-### A High-Performance Mediator Implementation for .NET, 
+### A High-Performance Mediator Implementation for .NET :trollface: 
 ** *Minimal memory footprint. Blazing-fast execution.* **
+
+> [!NOTE]
+> If you're curious to see the power of this library, [check out the benchmark](https://github.com/hasanxdev/DispatchR?tab=readme-ov-file#-bechmark-result) comparing MediatR vs Mediator Source Generator vs DispatchR.
 
 ## ⚡ Key Features
 - 🧩 Built entirely on top of Dependency Injection
