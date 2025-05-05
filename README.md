@@ -11,19 +11,19 @@
 > If you're curious to see the power of this library, [check out the benchmark](https://github.com/hasanxdev/DispatchR?tab=readme-ov-file#-bechmark-result) comparing MediatR vs Mediator Source Generator vs DispatchR.
 
 ## ⚡ Key Features
-- 🧩 Built entirely on top of Dependency Injection
-- 🚫 Zero runtime reflection after registration
-- 🔧 Choose your handler return type: `Task`, `ValueTask`, or `Synchronous Method`
-- 🧠 Allocates nothing on the heap — ideal for high-throughput scenarios
-- ⚡ Outperforms existing solutions in most real-world benchmarks
-- 🔄 Seamlessly compatible with MediatR — migrate with minimal effort
+- Built entirely on top of Dependency Injection
+- Zero runtime reflection after registration
+- Choose your handler return type: `Task`, `ValueTask`, or `Synchronous Method`
+- Allocates nothing on the heap — ideal for high-throughput scenarios
+- Outperforms existing solutions in most real-world benchmarks
+- Seamlessly compatible with MediatR — migrate with minimal effort
 > :bulb: **Tip:** *If you're looking for a mediator with the raw performance of hand-written code, DispatchR is built for you.*
 
 # Syntax Comparison: DispatchR vs MediatR
 
 ###### In the following, you will see the key differences and implementation details between MediatR and DispatchR.
 
-## ✅ Request Definition
+## Request Definition
 
 ### MediatR
 ```csharp
@@ -39,7 +39,7 @@ public sealed class PingMediatR : IRequest<int> { }
 public sealed class PingDispatchR : IRequest<PingDispatchR, ValueTask<int>> { } 
 ```
 
-## ✅ Handler Definition
+## Handler Definition
 
 ### MediatR
 ```csharp
@@ -64,7 +64,7 @@ public sealed class PingHandlerDispatchR : IRequestHandler<PingDispatchR, ValueT
 }
 ```
 
-## ✅ Pipeline Behavior
+## Pipeline Behavior
 
 ### MediatR
 ```csharp
@@ -92,7 +92,7 @@ public sealed class LoggingBehaviorDispatchR : IPipelineBehavior<PingDispatchR, 
 }
 ```
 
-## 🔍 Summary
+## Summary
 
 - **DispatchR** lets the request itself define the return type.
 - **No runtime reflection** in DispatchR — it's optimized for performance.
@@ -106,7 +106,7 @@ Ideal for high-performance .NET applications.
 
 ###### DispatchR is designed with one goal in mind: **maximize performance with minimal memory usage**. Here's how it accomplishes that:
 
-## 🔍 What Happens Inside the `Send` Method?
+## What Happens Inside the `Send` Method?
 
 ```csharp
 public TResponse Send<TRequest, TResponse>(IRequest<TRequest, TResponse> request,
@@ -118,7 +118,7 @@ public TResponse Send<TRequest, TResponse>(IRequest<TRequest, TResponse> request
 }
 ```
 
-✅ **Only the handler is resolved and directly invoked!**
+**Only the handler is resolved and directly invoked!**
 
 But the real magic happens behind the scenes when DI resolves the handler dependency:
 > 💡 __Tips:__ *We cache the handler using DI, so in scoped scenarios, the object is constructed only once and reused afterward.*
@@ -140,7 +140,7 @@ services.AddScoped(handlerInterface, sp =>
 });
 ```
 
-✨ This elegant design chains pipeline behaviors at resolution time — no static lists, no reflection, no magic.
+This elegant design chains pipeline behaviors at resolution time — no static lists, no reflection, no magic.
 
 
 ## 🧠 Smarter LINQ: Zero Allocation
