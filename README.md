@@ -48,22 +48,22 @@ using System.Threading.Tasks;
 // Handler to send an email
 public sealed class EmailConfirmationHandler : INotificationHandler<OrderCreatedNotification>
 {
-    public Task Handle(OrderCreatedNotification notification, CancellationToken cancellationToken)
+    public ValueTask Handle(OrderCreatedNotification notification, CancellationToken cancellationToken)
     {
         Console.WriteLine($"Emailing confirmation for order {notification.OrderId} placed at {notification.Timestamp}.");
         // Actual email sending logic here
-        return Task.CompletedTask;
+        return default;
     }
 }
 
 // Handler to update inventory
 public sealed class InventoryUpdateHandler : INotificationHandler<OrderCreatedNotification>
 {
-    public Task Handle(OrderCreatedNotification notification, CancellationToken cancellationToken)
+    public ValueTask Handle(OrderCreatedNotification notification, CancellationToken cancellationToken)
     {
         Console.WriteLine($"Updating inventory for order {notification.OrderId}.");
         // Actual inventory update logic here
-        return Task.CompletedTask;
+        return default;
     }
 }
 ```
@@ -77,9 +77,9 @@ using System.Threading.Tasks;
 
 public class OrderService
 {
-    private readonly IMediator _mediator;
+    private readonly IPublisher _mediator;
 
-    public OrderService(IMediator mediator)
+    public OrderService(IPublisher mediator)
     {
         _mediator = mediator;
     }
@@ -108,18 +108,21 @@ DispatchR's performance comes from its simple yet powerful design, focusing on e
 When you call `PublishAsync<TNotification>(notification, cancellationToken)`:
 ```csharp
 // Simplified conceptual logic within IMediator.PublishAsync
-// public async Task PublishAsync<TNotification>(TNotification notification, CancellationToken cancellationToken)
+// public ValueTask PublishAsync<TNotification>(TNotification notification, CancellationToken cancellationToken)
 //     where TNotification : INotification
 // {
-//     var handlers = serviceProvider.GetServices<INotificationHandler<TNotification>>();
-//     var tasks = new List<Task>();
+//     var handler = serviceProvider.GetServices<INotificationHandler<TNotification>>();
+//     // The 'handler' variable from the line above (serviceProvider.GetServices<...>)
+//     // resolves to an effective handler. This might be:
+//     //  - null (or a no-op handler) if no handlers are registered.
+//     //  - A single INotificationHandler<TNotification> instance.
+//     //  - An aggregate handler that internally manages multiple registered handlers
+//     //    (e.g., for parallel or sequential execution based on configuration).
 //
-//     foreach (var handler in handlers)
-//     {
-//         tasks.Add(handler.Handle(notification, cancellationToken));
-//     }
-//
-//     await Task.WhenAll(tasks); // Efficiently awaits all handlers
+//     // if (handler is not null)
+//     // {
+//     //     await handler.Handle(notification, cancellationToken); // Dispatches to the effective handler
+//     // }
 // }
 ```
 This direct approach, combined with compile-time type safety and efficient use of DI, results in blazing-fast notification handling.
