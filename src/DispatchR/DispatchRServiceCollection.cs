@@ -1,93 +1,103 @@
 ﻿using System.Reflection;
-using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Microsoft.Extensions.DependencyInjection;
-using ZLinq;
-
-
-[assembly: ZLinqDropIn("", DropInGenerateTypes.Everything)]
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace DispatchR;
 
 public static class DispatchRServiceCollection
 {
-    public static void AddDispatchR(this IServiceCollection services, Assembly assembly, bool withPipelines = true)
-    {
-        services.AddScoped<IMediator, Mediator>();
-        var allTypes = assembly.GetTypes()
-            .AsValueEnumerable()
-            .Where(p =>
-            {
-                var interfaces = p.GetInterfaces();
-                return interfaces.Length >= 1 &&
-                       interfaces.Any(p => p.IsGenericType) &&
-                       (interfaces.First(p => p.IsGenericType)
-                            .GetGenericTypeDefinition() == typeof(IRequestHandler<,>) ||
-                        interfaces.First(p => p.IsGenericType)
-                            .GetGenericTypeDefinition() == typeof(IPipelineBehavior<,>));
-            });
-        
-        var allHandlers = allTypes
-            .Where(p =>
-            {
-                return p.GetInterfaces().First(p => p.IsGenericType)
-                           .GetGenericTypeDefinition() == typeof(IRequestHandler<,>);
-            });
-        
-        var allPipelines = allTypes
-            .Where(p =>
-            {
-                return p.GetInterfaces().First(p => p.IsGenericType)
-                    .GetGenericTypeDefinition() == typeof(IPipelineBehavior<,>);
-            });
+	private static bool IsClosedGenericOf(this Type type, Type openGeneric) =>
+		type.IsGenericType &&
+		type.GetGenericTypeDefinition() == openGeneric;
 
-        foreach (var handler in allHandlers)
-        {
-            var handlerInterface = handler.GetInterfaces()
-                .First(p => p.IsGenericType && p.GetGenericTypeDefinition() == typeof(IRequestHandler<,>));
+	private static bool IsNotificationHandler(this Type type) => type
+		.IsClosedGenericOf(typeof(INotificationHandler<>));
 
-            // find pipelines
-            if (withPipelines)
-            {
-                var pipelines = allPipelines
-                    .Where(p =>
-                    {
-                        var interfaces = p.GetInterfaces();
-                        return interfaces
-                                   .FirstOrDefault(inter =>
-                                       inter.IsGenericType &&
-                                       inter.GetGenericTypeDefinition() ==
-                                       typeof(IPipelineBehavior<,>))
-                                   ?.GetInterfaces().First().GetGenericTypeDefinition() ==
-                               handlerInterface.GetGenericTypeDefinition();
-                    });
-                
-                foreach (var pipeline in pipelines)
-                {
-                    var interfaceIPipeline = pipeline.GetInterfaces()
-                        .First(p => p.GetGenericTypeDefinition() == typeof(IPipelineBehavior<,>));
-                    services.AddScoped(interfaceIPipeline, pipeline);   
-                }
-            }
+	private static bool HasNotificationHandler(Type type) => type
+		.GetInterfaces()
+		.Any(x => x.IsNotificationHandler());
 
-            services.AddScoped(handler);
-            
-            var args = handlerInterface.GetGenericArguments();
-            var pipelinesType = typeof(IPipelineBehavior<,>).MakeGenericType(args[0], args[1]);
-            services.AddScoped(handlerInterface,   sp =>
-            {
-                var pipelines = sp
-                    .GetServices(pipelinesType)
-                    .Select(s => Unsafe.As<IRequestHandler>(s)!);
-                
-                IRequestHandler lastPipeline = Unsafe.As<IRequestHandler>(sp.GetService(handler))!;
-                foreach (var pipeline in pipelines)
-                {
-                    pipeline.SetNext(lastPipeline);
-                    lastPipeline = pipeline;
-                }
+	private class AggregateHandler<TNotification>(List<INotificationHandler<TNotification>> handlers) : INotificationHandler<TNotification>
+	{
+		public ValueTask Handle(TNotification notification, CancellationToken cancellationToken) {
+			Span<ValueTask> tasks = handlers
+				.Select(x => x.Handle(notification, cancellationToken))
+				.ToArray();
+			return WhenAll(tasks);
+		}
 
-                return lastPipeline;
-            });
-        }
-    }
+		private static ValueTask WhenAll(in ReadOnlySpan<ValueTask> tasks) {
+			List<Task>? pendingTasks = null;
+			foreach( var task in tasks ) {
+				if( !task.IsCompletedSuccessfully ) {
+					(pendingTasks ??= []).Add(task.AsTask());
+				}
+			}
+
+			return pendingTasks is { Count: > 0 }
+				? new ValueTask(Task.WhenAll(CollectionsMarshal.AsSpan(pendingTasks)))
+				: ValueTask.CompletedTask;
+		}
+	}
+
+	private abstract class Registration
+	{
+		public abstract void RegisterHandlers(IServiceCollection services, IEnumerable<Type> handlers, ServiceLifetime lifetime);
+	}
+
+	private class Registration<TNotification> : Registration
+	{
+		public override void RegisterHandlers(IServiceCollection services, IEnumerable<Type> handlers, ServiceLifetime lifetime) {
+			switch( handlers.ToList() ) {
+				case []: break;
+				case [var handler]:
+					services.Add(new ServiceDescriptor(
+						typeof(INotificationHandler<TNotification>),
+						s => s.GetRequiredService(handler),
+						lifetime
+					));
+					break;
+				case { } list:
+					services.Add(new ServiceDescriptor(
+						typeof(INotificationHandler<TNotification>),
+						s => new AggregateHandler<TNotification>(list
+							.Select(x => (INotificationHandler<TNotification>)s.GetRequiredService(x))
+							.ToList()
+						),
+						lifetime
+					));
+					break;
+			}
+		}
+	}
+
+	public static IServiceCollection AddDispatchR(this IServiceCollection services, Assembly assembly, ServiceLifetime lifetime = ServiceLifetime.Scoped) {
+		services.TryAddScoped<IPublisher, Publisher>();
+
+		var handlers = assembly
+			.GetTypes()
+			.Where(type => (type.IsClass || type.IsValueType) && HasNotificationHandler(type))
+			.ToList();
+
+		foreach( var handler in handlers ) {
+			services.TryAdd(new ServiceDescriptor(handler, handler, lifetime));
+		}
+
+		var handlersByInterface = handlers
+			.SelectMany(x => x
+				.GetInterfaces()
+				.Where(IsNotificationHandler)
+				.Distinct()
+				.Select(i => (Handler: x, Interface: i))
+			)
+			.GroupBy(x => x.Interface, x => x.Handler);
+
+		foreach( var r in handlersByInterface ) {
+			var registration = (Registration)Activator.CreateInstance(typeof(Registration<>).MakeGenericType(r.Key.GetGenericArguments()))!;
+			registration.RegisterHandlers(services, r, lifetime);
+		}
+
+		return services;
+	}
 }

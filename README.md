@@ -1,185 +1,156 @@
-# DispatchR 🚀
+# DispatchR/Botched 🚀
 
-![CI](https://github.com/hasanxdev/DispatchR/workflows/Release/badge.svg)
-[![NuGet](https://img.shields.io/nuget/dt/DispatchR.Mediator.svg)](https://www.nuget.org/packages/DispatchR.Mediator)
-[![NuGet](https://img.shields.io/nuget/vpre/DispatchR.Mediator.svg)](https://www.nuget.org/packages/DispatchR.Mediator)
-
-### A High-Performance Mediator Implementation for .NET :trollface: 
-** *Minimal memory footprint. Blazing-fast execution.* **
+### A Blazing-Fast Async Notification Dispatcher for .NET
+** *Minimal memory footprint. Extremely fast, correct execution.* **
 
 > [!NOTE]
-> If you're curious to see the power of this library, [check out the benchmark](https://github.com/hasanxdev/DispatchR?tab=readme-ov-file#-bechmark-result) comparing MediatR vs Mediator Source Generator vs DispatchR.
+> DispatchR has been streamlined to focus on what it does best: delivering outstanding performance for asynchronous notification patterns in .NET applications.
 
 ## ⚡ Key Features
-- Built entirely on top of Dependency Injection
-- Zero runtime reflection after registration
-- Choose your handler return type: `Task`, `ValueTask`, or `Synchronous Method`
-- Allocates nothing on the heap — ideal for high-throughput scenarios
-- Outperforms existing solutions in most real-world benchmarks
-- Seamlessly compatible with MediatR — migrate with minimal effort
-> :bulb: **Tip:** *If you're looking for a mediator with the raw performance of hand-written code, DispatchR is built for you.*
+- **High-Performance Notifications**: Designed for speed and efficiency in handling asynchronous events.
+- **Flexible Handler Execution**: Supports simple (all handlers), single (first/specific), or parallel execution of notification handlers.
+- **Dependency Injection Centric**: Built entirely on top of .NET's Dependency Injection for clean and manageable code.
+- **Zero Runtime Reflection**: Optimized for performance by avoiding runtime reflection after initial registration.
+- **Minimal Allocations**: Engineered to minimize heap allocations, making it ideal for high-throughput and memory-sensitive applications.
+- **Easy Migration**: Familiar patterns for developers accustomed to MediatR's notification system.
 
-# Syntax Comparison: DispatchR vs MediatR
+> :bulb: **Tip:** *If you need a mediator that excels at dispatching notifications with raw speed and efficiency, DispatchR is built for you.*
 
-###### In the following, you will see the key differences and implementation details between MediatR and DispatchR.
+# Using DispatchR for Notifications
 
-## Request Definition
+DispatchR simplifies the implementation of the mediator pattern for asynchronous notifications. Here’s how you can define, handle, and publish notifications:
 
-### MediatR
-```csharp
-public sealed class PingMediatR : IRequest<int> { }
-```
-
-### DispatchR
-1. Sending `TRequest` to `IRequest`
-2. Precise selection of output for both `async` and `sync` handlers 
-   1. Ability to choose between `Task` and `ValueTask`
+## 1. Define a Notification
+Notifications are simple classes, or values. They carry the data related to an event.
 
 ```csharp
-public sealed class PingDispatchR : IRequest<PingDispatchR, ValueTask<int>> { } 
-```
-
-## Handler Definition
-
-### MediatR
-```csharp
-public sealed class PingHandlerMediatR : IRequestHandler<PingMediatR, int>
+// Example: A notification for when an order is created
+public sealed class OrderCreatedNotification
 {
-    public Task<int> Handle(PingMediatR request, CancellationToken cancellationToken)
+    public int OrderId { get; init; }
+    public DateTime Timestamp { get; init; }
+
+    public OrderCreatedNotification(int orderId)
     {
-        return Task.FromResult(0);
+        OrderId = orderId;
+        Timestamp = DateTime.UtcNow;
     }
 }
 ```
 
-### DispatchR (Don't change)
+## 2. Create Notification Handlers
+Handlers implement the `INotificationHandler<TNotification>` interface and contain the logic to process a notification. You can have multiple handlers for a single notification type.
 
 ```csharp
-public sealed class PingHandlerDispatchR : IRequestHandler<PingDispatchR, ValueTask<int>>
+using System.Threading;
+using System.Threading.Tasks;
+
+// Handler to send an email
+public sealed class EmailConfirmationHandler : INotificationHandler<OrderCreatedNotification>
 {
-    public ValueTask<int> Handle(PingDispatchR request, CancellationToken cancellationToken)
+    public Task Handle(OrderCreatedNotification notification, CancellationToken cancellationToken)
     {
-        return ValueTask.FromResult(0);
+        Console.WriteLine($"Emailing confirmation for order {notification.OrderId} placed at {notification.Timestamp}.");
+        // Actual email sending logic here
+        return Task.CompletedTask;
+    }
+}
+
+// Handler to update inventory
+public sealed class InventoryUpdateHandler : INotificationHandler<OrderCreatedNotification>
+{
+    public Task Handle(OrderCreatedNotification notification, CancellationToken cancellationToken)
+    {
+        Console.WriteLine($"Updating inventory for order {notification.OrderId}.");
+        // Actual inventory update logic here
+        return Task.CompletedTask;
     }
 }
 ```
+DispatchR will discover and execute these handlers based on your registration and configuration (e.g., in parallel).
 
-## Pipeline Behavior
+## 3. Publish a Notification
+Use the [`IMediator`](src/DispatchR/IMediator.cs:L1) interface to publish notifications. DispatchR ensures that all relevant handlers are invoked.
 
-### MediatR
 ```csharp
-public sealed class LoggingBehaviorMediat : IPipelineBehavior<PingMediatR, int>
+using System.Threading.Tasks;
+
+public class OrderService
 {
-    public Task<int> Handle(PingMediatR request, RequestHandlerDelegate<int> next, CancellationToken cancellationToken)
+    private readonly IMediator _mediator;
+
+    public OrderService(IMediator mediator)
     {
-        return next(cancellationToken);
+        _mediator = mediator;
+    }
+
+    public async Task CreateOrderAsync(int orderId)
+    {
+        // ... order creation logic ...
+
+        var notification = new OrderCreatedNotification(orderId);
+        await _mediator.PublishAsync(notification); // CancellationToken can be passed if needed
+
+        Console.WriteLine($"Order {orderId} processed and notification published.");
     }
 }
 ```
-
-### DispatchR
-1. Use ___Chain of Responsibility___ pattern
-
-```csharp
-public sealed class LoggingBehaviorDispatchR : IPipelineBehavior<PingDispatchR, ValueTask<int>>
-{
-    public required IRequestHandler<PingDispatchR, ValueTask<int>> NextPipeline { get; set; }
-
-    public ValueTask<int> Handle(PingDispatchR request, CancellationToken cancellationToken)
-    {
-        return NextPipeline.Handle(request, cancellationToken);
-    }
-}
-```
-
-## Summary
-
-- **DispatchR** lets the request itself define the return type.
-- **No runtime reflection** in DispatchR — it's optimized for performance.
-- **No static behavior chains** — pipelines are chained via DI and handler wiring.
-- **Supports `void`, `Task`, or `ValueTask`** as return types.
-
-Ideal for high-performance .NET applications.
-
 
 # ⚡ How DispatchR Achieves High Performance
 
-###### DispatchR is designed with one goal in mind: **maximize performance with minimal memory usage**. Here's how it accomplishes that:
+DispatchR's performance comes from its simple yet powerful design, focusing on efficient notification dispatch:
 
-## What Happens Inside the `Send` Method?
+1.  **Optimized Handler Resolution**: Leveraging .NET's `IServiceProvider`, DispatchR efficiently resolves registered `INotificationHandler<T>` instances.
+2.  **Direct Invocation**: Once resolved, handlers are invoked directly, without unnecessary overhead or reflection.
+3.  **Parallel Execution (Default)**: For notifications with multiple handlers, DispatchR can execute them in parallel, maximizing throughput for I/O-bound operations. (This can be configured if sequential or single-handler execution is needed for specific scenarios).
+4.  **Minimal Memory Overhead**: By avoiding complex object graphs and unnecessary allocations during the dispatch process, DispatchR keeps its memory footprint low.
+
+When you call `PublishAsync<TNotification>(notification, cancellationToken)`:
+```csharp
+// Simplified conceptual logic within IMediator.PublishAsync
+// public async Task PublishAsync<TNotification>(TNotification notification, CancellationToken cancellationToken)
+//     where TNotification : INotification
+// {
+//     var handlers = serviceProvider.GetServices<INotificationHandler<TNotification>>();
+//     var tasks = new List<Task>();
+//
+//     foreach (var handler in handlers)
+//     {
+//         tasks.Add(handler.Handle(notification, cancellationToken));
+//     }
+//
+//     await Task.WhenAll(tasks); // Efficiently awaits all handlers
+// }
+```
+This direct approach, combined with compile-time type safety and efficient use of DI, results in blazing-fast notification handling.
+
+# 🪴 How to use?
+Register DispatchR and your notification handlers in your `Program.cs` or `Startup.cs`:
 
 ```csharp
-public TResponse Send<TRequest, TResponse>(IRequest<TRequest, TResponse> request,
-    CancellationToken cancellationToken) where TRequest : class, IRequest, new()
-{
-    return serviceProvider
-        .GetRequiredService<IRequestHandler<TRequest, TResponse>>()
-        .Handle(Unsafe.As<TRequest>(request), cancellationToken);
-}
+// In your service configuration (e.g., Program.cs for .NET 6+)
+builder.Services.AddDispatchR(typeof(OrderCreatedNotification).Assembly);
 ```
+This will scan the specified assembly (and optionally others) for implementations of `INotification` and `INotificationHandler<T>` and register them with the DI container.
 
-**Only the handler is resolved and directly invoked!**
-
-But the real magic happens behind the scenes when DI resolves the handler dependency:
-> 💡 __Tips:__ *We cache the handler using DI, so in scoped scenarios, the object is constructed only once and reused afterward.*
-```csharp
-services.AddScoped(handlerInterface, sp =>
-{
-    var pipelines = sp
-        .GetServices(pipelinesType)
-        .Select(s => Unsafe.As<IRequestHandler>(s)!);
-
-    IRequestHandler lastPipeline = Unsafe.As<IRequestHandler>(sp.GetService(handler))!;
-    foreach (var pipeline in pipelines)
-    {
-        pipeline.SetNext(lastPipeline);
-        lastPipeline = pipeline;
-    }
-
-    return lastPipeline;
-});
-```
-
-This elegant design chains pipeline behaviors at resolution time — no static lists, no reflection, no magic.
-
-
-## 🧠 Smarter LINQ: Zero Allocation
-
-##### To further reduce memory allocations, DispatchR uses **zLinq**, a zero-allocation LINQ implementation, instead of the default LINQ. This means even in heavy pipelines and high-frequency requests, memory remains under control.
-> Of course, our goal is to stay dependency-free — but for now, I think it's totally fine to rely on this as a starting point!
-
-## 🪴 How to use?
-It's simple! Just use the following code:
-```csharp
-builder.Services.AddDispatchR(typeof(MyCommand).Assembly);
-```
-This code will automatically register all pipelines by default. If you need to register them in a specific order, you can either add them manually or write your own reflection logic:
-```csharp
-builder.Services.AddDispatchR(typeof(MyCommand).Assembly, withPipelines: false);
-builder.Services.AddScoped<IPipelineBehavior<MyCommand, int>, PipelineBehavior>();
-builder.Services.AddScoped<IPipelineBehavior<MyCommand, int>, ValidationBehavior>();
-```
 ### 💡 Key Notes:
-1. Automatic pipeline registration is enabled by default
-2. Manual registration allows for custom pipeline ordering
-3. You can implement custom reflection if needed
+1.  **Automatic Handler Registration**: `AddDispatchR` automatically finds and registers all your notification handlers from the provided assemblies.
+2.  **Scoped Lifestyle**: Handlers are typically registered with a scoped lifetime, ensuring they are reused within a given scope (e.g., an HTTP request) but new instances are created for new scopes.
+3.  **Configuration**: Future versions may offer more granular control over handler execution strategies (e.g., forcing sequential execution for specific notifications) via `AddDispatchR` options.
 
-## ✨ How to install?
+# ✨ How to install?
+```bash
+dotnet add package X --version 1.0.0
 ```
-dotnet add package DispatchR.Mediator --version 1.0.0
-```
+*(Ensure you are using the version that reflects the new notification-focused API. The version number here is from the original README and might need an update based on your release.)*
 
-# 🧪 Bechmark Result:
+# 🧪 Benchmark Result:
 > [!IMPORTANT]
-> This benchmark was conducted using MediatR version 12.5.0 and the stable release of Mediator Source Generator, version 2.1.7.
-Version 3 of Mediator Source Generator was excluded due to significantly lower performance.
+> The previous benchmarks focused on request-response patterns and are no longer representative of DispatchR's current capabilities.
+>
+> New benchmarks specifically testing the performance of asynchronous notification dispatching with DispatchR against other libraries are planned and will be published here soon. Expect to see impressive results showcasing DispatchR's speed and efficiency!
 
-#### 1. MediatR vs Mediator Source Generator vs DispatchR With Pipeline
-![Benchmark Result](./benchmark/results/with-pipeline-stable.png)
-#### 2. MediatR vs Mediator Source Generator vs DispatchR Without Pipeline
-![Benchmark Result](./benchmark/results/without-pipeline-stable.png)
-
-## ✨ Contribute & Help Grow This Package! ✨
+# ✨ Contribute & Help Grow This Package! ✨
 We welcome contributions to make this package even better! ❤️
  - Found a bug? 🐛 → Open an issue
  - Have an idea? 💡 → Suggest a feature
