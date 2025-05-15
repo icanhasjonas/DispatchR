@@ -7,14 +7,17 @@
 > DispatchR has been streamlined to focus on what it does best: delivering outstanding performance for asynchronous notification patterns in .NET applications.
 
 ## ⚡ Key Features
-- **High-Performance Notifications**: Designed for speed and efficiency in handling asynchronous events.
-- **Flexible Handler Execution**: Supports simple (all handlers), single (first/specific), or parallel execution of notification handlers.
+- **Purely Notification Focused**: Designed exclusively for high-speed, efficient asynchronous notification dispatch.
+- **`ValueTask` Native**: All notification handlers are `ValueTask`-based by default for optimal async performance and reduced allocations.
+- **Efficient Parallel Handler Execution (Default)**: All registered handlers for a notification are executed concurrently.
+- **No `INotification` Constraint**: Notification types can be any class or struct; they do not need to implement a marker interface like `INotification`.
 - **Dependency Injection Centric**: Built entirely on top of .NET's Dependency Injection for clean and manageable code.
-- **Zero Runtime Reflection**: Optimized for performance by avoiding runtime reflection after initial registration.
+- **Optimized Registration & Execution**: Streamlined and corrected registration process. Zero runtime reflection after initial setup ensures raw speed.
 - **Minimal Allocations**: Engineered to minimize heap allocations, making it ideal for high-throughput and memory-sensitive applications.
-- **Easy Migration**: Familiar patterns for developers accustomed to MediatR's notification system.
+- **Improved Type Safety**: Removed improper use of `Unsafe.As<>` for casting, ensuring more robust and type-safe operations.
+- **Simplified API**: A clear and concise API, distinct from other mediator libraries, focusing purely on the notification pattern.
 
-> :bulb: **Tip:** *If you need a mediator that excels at dispatching notifications with raw speed and efficiency, DispatchR is built for you.*
+> :bulb: **Tip:** *If you need a library that excels at dispatching notifications with raw speed, minimal overhead, improved safety, and a simple API, DispatchR is built for you.*
 
 # Using DispatchR for Notifications
 
@@ -67,10 +70,10 @@ public sealed class InventoryUpdateHandler : INotificationHandler<OrderCreatedNo
     }
 }
 ```
-DispatchR will discover and execute these handlers based on your registration and configuration (e.g., in parallel).
+DispatchR will discover and execute these handlers in parallel by default.
 
 ## 3. Publish a Notification
-Use the [`IMediator`](src/DispatchR/IMediator.cs:L1) interface to publish notifications. DispatchR ensures that all relevant handlers are invoked.
+Use the [`IPublisher`](src/DispatchR/IPublisher.cs:1) interface to publish notifications. DispatchR ensures that all relevant handlers are invoked.
 
 ```csharp
 using System.Threading.Tasks;
@@ -102,27 +105,23 @@ DispatchR's performance comes from its simple yet powerful design, focusing on e
 
 1.  **Optimized Handler Resolution**: Leveraging .NET's `IServiceProvider`, DispatchR efficiently resolves registered `INotificationHandler<T>` instances.
 2.  **Direct Invocation**: Once resolved, handlers are invoked directly, without unnecessary overhead or reflection.
-3.  **Parallel Execution (Default)**: For notifications with multiple handlers, DispatchR can execute them in parallel, maximizing throughput for I/O-bound operations. (This can be configured if sequential or single-handler execution is needed for specific scenarios).
+3.  **Parallel Execution (Default)**: For notifications with multiple handlers, DispatchR executes them in parallel by default (internally using an optimized approach similar to `Task.WhenAll` for `ValueTask`s), maximizing throughput for I/O-bound operations.
 4.  **Minimal Memory Overhead**: By avoiding complex object graphs and unnecessary allocations during the dispatch process, DispatchR keeps its memory footprint low.
 
-When you call `PublishAsync<TNotification>(notification, cancellationToken)`:
+When you call `PublishAsync<TNotification>(notification, cancellationToken)` on the [`IPublisher`](src/DispatchR/IPublisher.cs:1) interface:
 ```csharp
-// Simplified conceptual logic within IMediator.PublishAsync
+// Simplified conceptual logic within IPublisher.PublishAsync
 // public ValueTask PublishAsync<TNotification>(TNotification notification, CancellationToken cancellationToken)
-//     where TNotification : INotification
 // {
-//     var handler = serviceProvider.GetServices<INotificationHandler<TNotification>>();
-//     // The 'handler' variable from the line above (serviceProvider.GetServices<...>)
-//     // resolves to an effective handler. This might be:
-//     //  - null (or a no-op handler) if no handlers are registered.
-//     //  - A single INotificationHandler<TNotification> instance.
-//     //  - An aggregate handler that internally manages multiple registered handlers
-//     //    (e.g., for parallel or sequential execution based on configuration).
+//     // DispatchR resolves a single, effective INotificationHandler<TNotification>
+//     // for the given TNotification. This handler is internally:
+//     //  - A direct instance if only one handler is registered for TNotification.
+//     //  - An internal AggregateHandler if multiple handlers are registered,
+//     //    which then dispatches to all of them in parallel.
+//     //  - A no-op handler if no handlers are registered for TNotification (or configured to do so).
+//     var effectiveHandler = serviceProvider.GetRequiredService<INotificationHandler<TNotification>>();
 //
-//     // if (handler is not null)
-//     // {
-//     //     await handler.Handle(notification, cancellationToken); // Dispatches to the effective handler
-//     // }
+//     return effectiveHandler.Handle(notification, cancellationToken); // Dispatches to the effective handler
 // }
 ```
 This direct approach, combined with compile-time type safety and efficient use of DI, results in blazing-fast notification handling.
@@ -132,31 +131,31 @@ Register DispatchR and your notification handlers in your `Program.cs` or `Start
 
 ```csharp
 // In your service configuration (e.g., Program.cs for .NET 6+)
-builder.Services.AddDispatchR(typeof(OrderCreatedNotification).Assembly);
+builder.Services.AddDispatchR(typeof(Program).Assembly); // Or any assembly containing your handlers
 ```
-This will scan the specified assembly (and optionally others) for implementations of `INotification` and `INotificationHandler<T>` and register them with the DI container.
+This will scan the specified assembly for classes implementing `INotificationHandler<T>` for any type `T`. Your notification type `T` can be any class or struct and does not need to implement a specific marker interface.
 
 ### 💡 Key Notes:
-1.  **Automatic Handler Registration**: `AddDispatchR` automatically finds and registers all your notification handlers from the provided assemblies.
-2.  **Scoped Lifestyle**: Handlers are typically registered with a scoped lifetime, ensuring they are reused within a given scope (e.g., an HTTP request) but new instances are created for new scopes.
-3.  **Configuration**: Future versions may offer more granular control over handler execution strategies (e.g., forcing sequential execution for specific notifications) via `AddDispatchR` options.
+1.  **Simplified Handler Registration**: `AddDispatchR` automatically discovers and registers all implementations of `INotificationHandler<T>`. Your notification types (`T`) do not need to implement any specific interface (e.g., `INotification`).
+2.  **Corrected Handler Aggregation**: If multiple handlers are found for the same notification type, DispatchR correctly aggregates them into a single dispatcher that executes them in parallel by default.
+3.  **Configurable Lifetime**: Handlers are registered with a `ServiceLifetime.Scoped` lifetime by default. You can provide a different `ServiceLifetime` as an optional argument to `AddDispatchR` if needed.
 
 # ✨ How to install?
 ```bash
-dotnet add package X --version 1.0.0
+dotnet add package DispatchR.Botched --version X.Y.Z
 ```
-*(Ensure you are using the version that reflects the new notification-focused API. The version number here is from the original README and might need an update based on your release.)*
+*(Ensure you use the latest version of the `DispatchR.Botched` package.)*
 
 # 🧪 Benchmark Result:
 > [!IMPORTANT]
-> The previous benchmarks focused on request-response patterns and are no longer representative of DispatchR's current capabilities.
+> All previous benchmarks from the original `hasanxdev/DispatchR` repository, or those comparing request-response patterns, have been removed as they are no longer applicable to this streamlined, notification-only version. Practices such as using `Parallel.For()` for list manipulations in tests, which could be unsafe, have also been discontinued.
 >
-> New benchmarks specifically testing the performance of asynchronous notification dispatching with DispatchR against other libraries are planned and will be published here soon. Expect to see impressive results showcasing DispatchR's speed and efficiency!
+> New benchmarks, focusing solely on the high-performance asynchronous notification dispatching capabilities of this version, are planned and will be published here. Expect to see results that clearly demonstrate DispatchR's speed and efficiency in its specialized domain.
 
-# ✨ Contribute & Help Grow This Package! ✨
-We welcome contributions to make this package even better! ❤️
- - Found a bug? 🐛 → Open an issue
- - Have an idea? 💡 → Suggest a feature
- - Want to code? 👩💻 → Submit a PR
+# ✨ Contribute & Help Grow This Fork! ✨
+This project is a streamlined fork, departing from the original `hasanxdev/DispatchR`. Contributions to *this* version are welcome! ❤️
+ - Found a bug? 🐛 → Open an issue in the current repository.
+ - Have an idea? 💡 → Suggest a feature in the current repository.
+ - Want to code? 👩💻 → Submit a PR to the current repository.
 
 Let's build something amazing together! 🚀
